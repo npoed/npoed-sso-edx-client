@@ -18,6 +18,7 @@ DEFAULT_AUTH_PIPELINE = (
     'social.pipeline.user.get_username',
     'third_party_auth.pipeline.set_pipeline_timeout',
     'sso_edx_npoed.pipeline.ensure_user_information',
+    'sso_edx_npoed.common_pipeline.try_to_set_password',
     'social.pipeline.user.create_user',
     'social.pipeline.social_auth.associate_user',
     'social.pipeline.social_auth.load_extra_data',
@@ -99,6 +100,14 @@ class NpoedBackend(BaseOAuth2):
             headers={'Authorization': 'Bearer {}'.format(access_token)},
         )
 
+    def get_password_hash(self, access_token, *args, **kwargs):
+        return self.get_json(
+            '{}/users/get_hash'.format(settings.SSO_NPOED_URL),
+            params={'access_token': access_token},
+            headers={'Authorization': 'Bearer {}'.format(access_token)},
+            method='POST',
+        )
+
     def do_auth(self, access_token, *args, **kwargs):
         """Finish the auth process once the access_token was retrieved"""
         data = self.user_data(access_token)
@@ -114,3 +123,12 @@ class NpoedBackendCMS(NpoedBackend):
     We need different auth backend for cms and lms
     """
     name = 'sso_npoed_cms-oauth2'
+
+    def get_user(self, user_id):
+        try:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            user = User.objects.get(id=user_id)
+            return user
+        except:
+            return super(NpoedBackend, self).get_user(user_id)
